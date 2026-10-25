@@ -50,6 +50,8 @@ void host_action(PGM_P const pstr, const bool eol=true);
 
 #if ENABLED(HOST_PROMPT_SUPPORT)
 
+  #include "host_prompt_identity.h"
+
   extern const char CONTINUE_STR[], DISMISS_STR[];
 
   enum PromptReason : uint8_t {
@@ -63,7 +65,11 @@ void host_action(PGM_P const pstr, const bool eol=true);
 
   extern PromptReason host_prompt_reason;
 
-  void host_response_handler(const uint8_t response);
+  extern HostPromptIdentity host_prompt_identity;
+  bool host_response_handler(const uint8_t response);
+  bool host_response_enqueue(const uint8_t response);
+  void host_response_process();
+  HostPromptCheck host_token_response(const HostPromptSession session, const uint32_t prompt, const uint8_t response);
   void host_action_notify(const char * const message);
   void host_action_notify_P(PGM_P const message);
   void host_action_prompt_begin(const PromptReason reason, PGM_P const pstr, const char extra_char='\0');

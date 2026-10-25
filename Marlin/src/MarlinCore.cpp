@@ -776,6 +776,10 @@ void idle(TERN_(ADVANCED_PAUSE_FEATURE, bool no_stepper_sleep/*=false*/)) {
   // Manage Heaters (and Watchdog)
   thermalManager.manage_heater();
 
+  // Apply deferred host responses in the main loop, including while a command
+  // waits for user input. The emergency parser only fills a bounded mailbox.
+  TERN_(HOST_PROMPT_SUPPORT, host_response_process());
+
   #if ENABLED(CREALITY_POWER_LOSS)
     //实时获取当前的电压变化，电压低于23v时，则开始保存数据
     #if HAS_CUTTER
