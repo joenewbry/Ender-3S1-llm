@@ -130,7 +130,7 @@ void host_action(PGM_P const pstr, const bool eol) {
   void filament_load_host_prompt() {
     const bool disable_to_continue = TERN0(HAS_FILAMENT_SENSOR, runout.filament_ran_out);
     host_prompt_do(PROMPT_FILAMENT_RUNOUT, PSTR("Paused"), PSTR("PurgeMore"),
-      disable_to_continue ? PSTR("DisableRunout") : CONTINUE_STR
+      disable_to_continue ? nullptr : CONTINUE_STR
     );
   }
 
@@ -143,6 +143,22 @@ void host_action(PGM_P const pstr, const bool eol) {
   //
   void host_response_handler(const uint8_t response) {
     const PromptReason hpr = host_prompt_reason;
+    // Reject invalid/stale responses without consuming the current prompt.
+    // A remote Continue must never disable a triggered filament sensor.
+    switch (hpr) {
+      case PROMPT_FILAMENT_RUNOUT:
+        if (response > 1) return;
+        #if HAS_FILAMENT_SENSOR
+          if (response == 1 && runout.filament_ran_out) return;
+        #endif
+        break;
+      case PROMPT_USER_CONTINUE:
+      case PROMPT_PAUSE_RESUME:
+      case PROMPT_INFO:
+        if (response != 0) return;
+        break;
+      default: return;
+    }
     host_prompt_reason = PROMPT_NOT_DEFINED;  // Reset now ahead of logic
     switch (hpr) {
       case PROMPT_FILAMENT_RUNOUT:
@@ -154,15 +170,9 @@ void host_action(PGM_P const pstr, const bool eol) {
             #endif
             break;
 
-          case 1: // "Continue" / "Disable Runout" button
+          case 1: // "Continue" only after the runout condition is cleared
             #if BOTH(M600_PURGE_MORE_RESUMABLE, ADVANCED_PAUSE_FEATURE)
               pause_menu_response = PAUSE_RESPONSE_RESUME_PRINT;  // Simulate menu selection
-            #endif
-            #if HAS_FILAMENT_SENSOR
-              if (runout.filament_ran_out) {                      // Disable a triggered sensor
-                runout.enabled = false;
-                runout.reset();
-              }
             #endif
             break;
         }
