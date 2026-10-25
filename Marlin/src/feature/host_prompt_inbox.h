@@ -32,14 +32,17 @@ public:
     bool invalid;
   };
 
-  void receive(const uint8_t byte) {
+  bool pending() const { return pending_ready_; }
+
+  bool receive(const uint8_t byte) {
     if (byte != '\n') {
       if (receiving_length_ < sizeof(receiving_)) receiving_[receiving_length_++] = char(byte);
       else receiving_invalid_ = true;
       if (byte < 32 || byte > 126) receiving_invalid_ = true;
-      return;
+      return false;
     }
-    if (candidate()) {
+    const bool protocol_frame = candidate();
+    if (protocol_frame) {
       if (pending_ready_) overflow_ = true; // preserve the first complete frame
       else {
         for (uint8_t i = 0; i < receiving_length_; ++i) pending_[i] = receiving_[i];
@@ -50,6 +53,7 @@ public:
     }
     receiving_length_ = 0;
     receiving_invalid_ = false;
+    return protocol_frame;
   }
 
   bool take(Frame &out) {

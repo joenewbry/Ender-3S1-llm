@@ -194,7 +194,12 @@ public:
       // Numbered commands may carry a checksum; comments end the command.
       case EP_M108:
         if (ISEOL(c)) {
-          if (enabled) wait_for_user = wait_for_heatup = false;
+          if (enabled) {
+            #if ENABLED(LLM_PROMPT_PROTOCOL)
+              if (!host_prompt_token_mode && !host_prompt_protocol_busy)
+            #endif
+                wait_for_user = wait_for_heatup = false;
+          }
           state = EP_RESET;
         }
         else if (c == '*' || c == ';') state = EP_M108_TAIL;
@@ -219,7 +224,12 @@ public:
       default:
         if (ISEOL(c)) {
           if (enabled) switch (state) {
-            case EP_M108_TAIL: wait_for_user = wait_for_heatup = false; break;
+            case EP_M108_TAIL:
+              #if ENABLED(LLM_PROMPT_PROTOCOL)
+                if (!host_prompt_token_mode && !host_prompt_protocol_busy)
+              #endif
+                  wait_for_user = wait_for_heatup = false;
+              break;
             case EP_M112: killed_by_M112 = true; break;
             case EP_M410: quickstop_by_M410 = true; break;
             #if ENABLED(HOST_PROMPT_SUPPORT)

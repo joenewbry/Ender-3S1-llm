@@ -66,6 +66,11 @@ void host_action(PGM_P const pstr, const bool eol=true);
   extern PromptReason host_prompt_reason;
 
   extern HostPromptIdentity host_prompt_identity;
+  #if ENABLED(LLM_PROMPT_PROTOCOL)
+    extern volatile bool host_prompt_token_mode, host_prompt_protocol_busy;
+    void host_prompt_receive_byte(uint8_t byte);
+    void host_prompt_wire_process();
+  #endif
   bool host_response_handler(const uint8_t response);
   bool host_response_enqueue(const uint8_t response);
   void host_response_process();

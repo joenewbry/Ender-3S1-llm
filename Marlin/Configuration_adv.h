@@ -2190,6 +2190,8 @@
  * NOTE: Not yet implemented for all platforms.
  */
 #define EMERGENCY_PARSER
+// Experimental development-only token protocol on the primary STM32 UART.
+#define LLM_PROMPT_PROTOCOL
 
 /**
  * Realtime Reporting (requires EMERGENCY_PARSER)

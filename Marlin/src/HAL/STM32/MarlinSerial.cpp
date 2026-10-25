@@ -84,6 +84,12 @@ void MarlinSerial::_rx_complete_irq(serial_t *obj) {
 
   if (uart_getc(obj, &c) == 0) {
 
+    #if ENABLED(LLM_PROMPT_PROTOCOL)
+      // Only the host UART can submit protocol frames. The screen UART stays
+      // separate. Reception only fills the mailbox; main idle executes it.
+      if (this == static_cast<MarlinSerial*>(&MYSERIAL1)) host_prompt_receive_byte(c);
+    #endif
+
     rx_buffer_index_t i = (unsigned int)(obj->rx_head + 1) % SERIAL_RX_BUFFER_SIZE;
 
     // if we should be storing the received character into the location
