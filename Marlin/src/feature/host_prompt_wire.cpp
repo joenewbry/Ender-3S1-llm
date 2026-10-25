@@ -3,6 +3,9 @@
 #if ENABLED(LLM_PROMPT_PROTOCOL)
 #include "host_actions.h"
 #include "host_prompt_inbox.h"
+#if HAS_RESUME_CONTINUE
+  extern bool wait_for_user;
+#endif
 
 volatile bool host_prompt_token_mode = false, host_prompt_protocol_busy = false;
 static HostPromptInbox inbox;
@@ -45,6 +48,7 @@ static void receipt(const uint32_t request, const uint8_t result, const bool dup
   SERIAL_ECHOPGM(" H"); SERIAL_CHAR(host_prompt_identity.shown() ? '1' : '0');
   SERIAL_ECHOPGM(" B"); hex_value(host_prompt_identity.buttons(), 2);
   SERIAL_ECHOPGM(" R"); hex_value(uint8_t(host_prompt_reason), 2);
+  SERIAL_ECHOPGM(" W"); SERIAL_CHAR(TERN0(HAS_RESUME_CONTINUE, wait_for_user) ? '1' : '0');
   SERIAL_EOL();
 }
 
