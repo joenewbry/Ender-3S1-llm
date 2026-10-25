@@ -149,6 +149,11 @@ void host_action(PGM_P const pstr, const bool eol) {
     host_prompt_reason = PROMPT_NOT_DEFINED;
     host_action_prompt(PSTR("end"));
   }
+  void host_action_prompt_end_if_current(const uint32_t generation) {
+    if (host_prompt_identity.active()
+        && host_prompt_identity.generation() == generation)
+      host_action_prompt_end();
+  }
   void host_action_prompt_show() { host_prompt_identity.show(); host_action_prompt(PSTR("show")); }
 
   void _host_prompt_show(PGM_P const btn1/*=nullptr*/, PGM_P const btn2/*=nullptr*/) {
@@ -191,6 +196,11 @@ void host_action(PGM_P const pstr, const bool eol) {
         #endif
         break;
       case PROMPT_USER_CONTINUE:
+        #if HAS_FILAMENT_SENSOR
+          if (runout.filament_ran_out) return false;
+        #endif
+        if (response != 0) return false;
+        break;
       case PROMPT_PAUSE_RESUME:
       case PROMPT_INFO:
         if (response != 0) return false;
@@ -236,7 +246,8 @@ void host_action(PGM_P const pstr, const bool eol) {
     const HostPromptCheck checked = host_prompt_identity.check(session, prompt, response);
     if (checked != HostPromptCheck::Ready) return checked;
     #if HAS_FILAMENT_SENSOR
-      if (host_prompt_reason == PROMPT_FILAMENT_RUNOUT && response == 1 && runout.filament_ran_out)
+      if (runout.filament_ran_out && (host_prompt_reason == PROMPT_USER_CONTINUE
+          || (host_prompt_reason == PROMPT_FILAMENT_RUNOUT && response == 1)))
         return HostPromptCheck::PhysicalActionRequired;
     #endif
     return host_response_handler(response) ? HostPromptCheck::Ready : HostPromptCheck::UnsupportedReason;

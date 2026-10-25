@@ -41,13 +41,12 @@ public:
   }
 
   // The host must use a fresh random 128-bit session for every connection and
-  // firmware boot. Same-session retry does not reset or reuse prompt numbers.
+  // firmware boot. Binding never resets generations or clears exhaustion;
+  // local wait cleanup must retain the same identity across a rebind.
   bool bind(const HostPromptSession value) {
     if (!(value.high || value.low)) return false;
     if (session_ == value) return true;
     session_ = value;
-    generation_ = active_ ? 1 : 0;
-    exhausted_ = false;
     return true;
   }
 

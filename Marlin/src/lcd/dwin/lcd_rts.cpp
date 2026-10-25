@@ -5,6 +5,9 @@
 // #include <libmaple/usart.h>
 #include "lcd_rts.h"
 #include "../../MarlinCore.h"
+#if ENABLED(HOST_PROMPT_SUPPORT)
+  #include "../../feature/host_actions.h"
+#endif
 #include "../../inc/MarlinConfig.h"
 #include "../../module/settings.h"
 #include "../../core/serial.h"
@@ -810,6 +813,7 @@ void RTSSHOW::RTS_SndData(unsigned long n, unsigned long addr, unsigned char cmd
 
 void RTSSHOW::RTS_SDcard_Stop(void)
 {
+  TERN_(HOST_PROMPT_SUPPORT, host_action_prompt_end());
   // planner.synchronize();
   // card.endFilePrintNow();
   card.flag.abort_sd_printing = true;  //card.flag.abort_sd_printing
@@ -1153,6 +1157,7 @@ void RTSSHOW::RTS_HandleData(void)
 
         runout.reset();
         wait_for_user = false;
+        TERN_(HOST_PROMPT_SUPPORT, host_action_prompt_end());
 
         RTS_SndData(ExchangePageBase + 40, ExchangepageAddr);
         change_page_font = 40;
@@ -1250,6 +1255,7 @@ void RTSSHOW::RTS_HandleData(void)
           if(wait_for_user)
           {
             wait_for_user = false;
+            TERN_(HOST_PROMPT_SUPPORT, host_action_prompt_end());
           }
           else
         #endif
@@ -1308,6 +1314,7 @@ void RTSSHOW::RTS_HandleData(void)
         // ui.pause_show_message(PAUSE_MESSAGE_RESUME);
         // queue.inject_P(PSTR("M108"));
         wait_for_user = false;
+        TERN_(HOST_PROMPT_SUPPORT, host_action_prompt_end());
         // runout.filament_ran_out = false;
         runout.reset();
 

@@ -75,6 +75,7 @@ void host_action(PGM_P const pstr, const bool eol=true);
   void host_action_prompt_begin(const PromptReason reason, PGM_P const pstr, const char extra_char='\0');
   void host_action_prompt_button(PGM_P const pstr);
   void host_action_prompt_end();
+  void host_action_prompt_end_if_current(uint32_t generation);
   void host_action_prompt_show();
   void host_prompt_do(const PromptReason reason, PGM_P const pstr, PGM_P const btn1=nullptr, PGM_P const btn2=nullptr);
   void host_prompt_do(const PromptReason reason, PGM_P const pstr, const char extra_char, PGM_P const btn1=nullptr, PGM_P const btn2=nullptr);
