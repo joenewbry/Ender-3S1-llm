@@ -75,8 +75,8 @@
 #define ENDER_3S1_PRO
   
 // 主控芯片
-#define USER_STM32F103  1
-// #define USER_STM32F401  1
+// #define USER_STM32F103  1
+#define USER_STM32F401  1
 
 
 #if ENABLED(ENDER_3S1_PRO)
