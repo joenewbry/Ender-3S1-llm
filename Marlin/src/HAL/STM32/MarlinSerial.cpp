@@ -20,6 +20,9 @@
 
 #include "../../inc/MarlinConfig.h"
 #include "MarlinSerial.h"
+#if ENABLED(LLM_PROMPT_PROTOCOL)
+  #include "../../feature/host_prompt_rx_router.h"
+#endif
 
 #if ENABLED(EMERGENCY_PARSER)
   #include "../../feature/e_parser.h"
@@ -90,16 +93,22 @@ void MarlinSerial::_rx_complete_irq(serial_t *obj) {
       if (this == static_cast<MarlinSerial*>(&MYSERIAL1)) host_prompt_receive_byte(c);
     #endif
 
-    rx_buffer_index_t i = (unsigned int)(obj->rx_head + 1) % SERIAL_RX_BUFFER_SIZE;
-
-    // if we should be storing the received character into the location
-    // just before the tail (meaning that the head would advance to the
-    // current location of the tail), we're about to overflow the buffer
-    // and so we don't write the character or advance the head.
-    if (i != obj->rx_tail) {
-      obj->rx_buff[obj->rx_head] = c;
-      obj->rx_head = i;
-    }
+    const auto store = [obj](const uint8_t byte) {
+      const rx_buffer_index_t i = (unsigned int)(obj->rx_head + 1) % SERIAL_RX_BUFFER_SIZE;
+      if (i != obj->rx_tail) {
+        obj->rx_buff[obj->rx_head] = byte;
+        obj->rx_head = i;
+      }
+    };
+    #if ENABLED(LLM_PROMPT_PROTOCOL)
+      if (this == static_cast<MarlinSerial*>(&MYSERIAL1)) {
+        static HostPromptRxRouter router;
+        router.receive(c, store);
+      }
+      else store(c);
+    #else
+      store(c);
+    #endif
 
     #if ENABLED(EMERGENCY_PARSER)
       emergency_parser.update(static_cast<MSerialT*>(this)->emergency_state, c);
