@@ -244,6 +244,8 @@ struct HeaterWatch {
       if (newtarget < tgt - HYSTERESIS - 1) {
         target = newtarget;
         next_ms = millis() + SEC_TO_MS(PERIOD);
+        // Zero means disabled. Preserve an armed watch across timer wraparound.
+        if (!next_ms) next_ms = 1;
         return;
       }
     }
