@@ -3311,3 +3311,15 @@ static_assert(   _ARR_TEST(3,0) && _ARR_TEST(3,1) && _ARR_TEST(3,2)
 #if ENABLED(FREEZE_FEATURE) && !PIN_EXISTS(FREEZE)
   #error "FREEZE_FEATURE requires a FREEZE_PIN to be defined."
 #endif
+
+#if ENABLED(LLM_PROMPT_PROTOCOL)
+  #if !BOTH(HOST_PROMPT_SUPPORT, EMERGENCY_PARSER) || DISABLED(HOST_ACTION_COMMANDS)
+    #error "LLM_PROMPT_PROTOCOL requires host actions, prompts and emergency parsing."
+  #endif
+  #if !defined(ARDUINO_ARCH_STM32) || defined(STM32GENERIC) || SERIAL_PORT < 1
+    #error "LLM_PROMPT_PROTOCOL currently requires a primary STM32 hardware UART."
+  #endif
+  #if defined(LCD_SERIAL_PORT) && LCD_SERIAL_PORT == SERIAL_PORT
+    #error "LLM_PROMPT_PROTOCOL requires separate host and screen UARTs."
+  #endif
+#endif
