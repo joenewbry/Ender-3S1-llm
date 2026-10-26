@@ -208,6 +208,7 @@ bool load_filament(const_float_t slow_load_length/*=0*/, const_float_t fast_load
       impatient_beep(max_beep_count);
       idle_no_sleep();
     }
+    TERN_(HOST_PROMPT_SUPPORT, host_action_prompt_end());
   }
 
   if (show_lcd) ui.pause_show_message(PAUSE_MESSAGE_LOAD, mode);
@@ -554,6 +555,7 @@ void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep
       }
       else if(card.flag.abort_sd_printing)
       {
+        TERN_(HOST_PROMPT_SUPPORT, host_action_prompt_end());
         runout.reset();
         return;
       }
@@ -610,6 +612,7 @@ void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep
   }
   #endif
 
+  TERN_(HOST_PROMPT_SUPPORT, host_action_prompt_end());
   #if ENABLED(DUAL_X_CARRIAGE)
     set_duplication_enabled(saved_ext_dup_mode, saved_ext);
   #endif

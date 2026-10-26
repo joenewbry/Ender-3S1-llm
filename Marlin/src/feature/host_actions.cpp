@@ -76,6 +76,36 @@ void host_action(PGM_P const pstr, const bool eol) {
   #endif
 
   PromptReason host_prompt_reason = PROMPT_NOT_DEFINED;
+  HostPromptIdentity host_prompt_identity;
+  static volatile uint8_t pending_host_response = UINT8_MAX;
+  static volatile uint32_t pending_host_generation = 0;
+
+  // Emergency parser entry point: bounded mailbox only, no UI, planner, serial
+  // output or token-state mutation inside the receive/interrupt context.
+  bool host_response_enqueue(const uint8_t response) {
+    if (response == UINT8_MAX) return false;
+    bool accepted = false;
+    CRITICAL_SECTION_START();
+    if (pending_host_response == UINT8_MAX) {
+      pending_host_generation = host_prompt_identity.generation();
+      pending_host_response = response;
+      accepted = true;
+    }
+    CRITICAL_SECTION_END();
+    return accepted;
+  }
+
+  void host_response_process() {
+    CRITICAL_SECTION_START();
+    const uint8_t response = pending_host_response;
+    const uint32_t generation = pending_host_generation;
+    pending_host_response = UINT8_MAX;
+    CRITICAL_SECTION_END();
+    // Binding a token session disables legacy tokenless replies. Even in
+    // compatibility mode, never apply a queued reply to a replacement prompt.
+    if (response != UINT8_MAX && host_prompt_identity.legacy_accepts(generation))
+      host_response_handler(response);
+  }
 
   void host_action_notify(const char * const message) {
     PORT_REDIRECT(SerialMask::All);
@@ -107,11 +137,24 @@ void host_action(PGM_P const pstr, const bool eol) {
   void host_action_prompt_begin(const PromptReason reason, PGM_P const pstr, const char extra_char/*='\0'*/) {
     host_action_prompt_end();
     host_prompt_reason = reason;
+    host_prompt_identity.begin();
     host_action_prompt_plus(PSTR("begin"), pstr, extra_char);
   }
-  void host_action_prompt_button(PGM_P const pstr) { host_action_prompt_plus(PSTR("button"), pstr); }
-  void host_action_prompt_end() { host_action_prompt(PSTR("end")); }
-  void host_action_prompt_show() { host_action_prompt(PSTR("show")); }
+  void host_action_prompt_button(PGM_P const pstr) {
+    host_prompt_identity.button();
+    host_action_prompt_plus(PSTR("button"), pstr);
+  }
+  void host_action_prompt_end() {
+    host_prompt_identity.end();
+    host_prompt_reason = PROMPT_NOT_DEFINED;
+    host_action_prompt(PSTR("end"));
+  }
+  void host_action_prompt_end_if_current(const uint32_t generation) {
+    if (host_prompt_identity.active()
+        && host_prompt_identity.generation() == generation)
+      host_action_prompt_end();
+  }
+  void host_action_prompt_show() { host_prompt_identity.show(); host_action_prompt(PSTR("show")); }
 
   void _host_prompt_show(PGM_P const btn1/*=nullptr*/, PGM_P const btn2/*=nullptr*/) {
     if (btn1) host_action_prompt_button(btn1);
@@ -130,7 +173,7 @@ void host_action(PGM_P const pstr, const bool eol) {
   void filament_load_host_prompt() {
     const bool disable_to_continue = TERN0(HAS_FILAMENT_SENSOR, runout.filament_ran_out);
     host_prompt_do(PROMPT_FILAMENT_RUNOUT, PSTR("Paused"), PSTR("PurgeMore"),
-      disable_to_continue ? PSTR("DisableRunout") : CONTINUE_STR
+      disable_to_continue ? nullptr : CONTINUE_STR
     );
   }
 
@@ -141,9 +184,31 @@ void host_action(PGM_P const pstr, const bool eol) {
   //  - Resume Print response
   //  - Dismissal of info
   //
-  void host_response_handler(const uint8_t response) {
+  bool host_response_handler(const uint8_t response) {
     const PromptReason hpr = host_prompt_reason;
+    // Reject invalid/stale responses without consuming the current prompt.
+    // A remote Continue must never disable a triggered filament sensor.
+    switch (hpr) {
+      case PROMPT_FILAMENT_RUNOUT:
+        if (response > 1) return false;
+        #if HAS_FILAMENT_SENSOR
+          if (response == 1 && runout.filament_ran_out) return false;
+        #endif
+        break;
+      case PROMPT_USER_CONTINUE:
+        #if HAS_FILAMENT_SENSOR
+          if (runout.filament_ran_out) return false;
+        #endif
+        if (response != 0) return false;
+        break;
+      case PROMPT_PAUSE_RESUME:
+      case PROMPT_INFO:
+        if (response != 0) return false;
+        break;
+      default: return false;
+    }
     host_prompt_reason = PROMPT_NOT_DEFINED;  // Reset now ahead of logic
+    host_prompt_identity.end();
     switch (hpr) {
       case PROMPT_FILAMENT_RUNOUT:
         switch (response) {
@@ -154,15 +219,9 @@ void host_action(PGM_P const pstr, const bool eol) {
             #endif
             break;
 
-          case 1: // "Continue" / "Disable Runout" button
+          case 1: // "Continue" only after the runout condition is cleared
             #if BOTH(M600_PURGE_MORE_RESUMABLE, ADVANCED_PAUSE_FEATURE)
               pause_menu_response = PAUSE_RESPONSE_RESUME_PRINT;  // Simulate menu selection
-            #endif
-            #if HAS_FILAMENT_SENSOR
-              if (runout.filament_ran_out) {                      // Disable a triggered sensor
-                runout.enabled = false;
-                runout.reset();
-              }
             #endif
             break;
         }
@@ -180,6 +239,18 @@ void host_action(PGM_P const pstr, const bool eol) {
         break;
       default: break;
     }
+    return true;
+  }
+
+  HostPromptCheck host_token_response(const HostPromptSession session, const uint32_t prompt, const uint8_t response) {
+    const HostPromptCheck checked = host_prompt_identity.check(session, prompt, response);
+    if (checked != HostPromptCheck::Ready) return checked;
+    #if HAS_FILAMENT_SENSOR
+      if (runout.filament_ran_out && (host_prompt_reason == PROMPT_USER_CONTINUE
+          || (host_prompt_reason == PROMPT_FILAMENT_RUNOUT && response == 1)))
+        return HostPromptCheck::PhysicalActionRequired;
+    #endif
+    return host_response_handler(response) ? HostPromptCheck::Ready : HostPromptCheck::UnsupportedReason;
   }
 
 #endif // HOST_PROMPT_SUPPORT

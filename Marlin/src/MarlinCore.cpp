@@ -262,12 +262,18 @@ bool eeprom_save_flag = false;
 
   void wait_for_user_response(millis_t ms/*=0*/, const bool no_sleep/*=false*/) {
     UNUSED(no_sleep);
+    #if ENABLED(HOST_PROMPT_SUPPORT)
+      const uint32_t prompt_generation = host_prompt_identity.generation();
+    #endif
     KEEPALIVE_STATE(PAUSED_FOR_USER);
     wait_for_user = true;
     if (ms) ms += millis(); // expire time
     while (wait_for_user && !(ms && ELAPSED(millis(), ms)))
       idle(TERN_(ADVANCED_PAUSE_FEATURE, no_sleep));
     wait_for_user = false;
+    // A timeout, local button or M108 can finish this wait without M876.
+    // Do not close a newer prompt created while idle() was servicing events.
+    TERN_(HOST_PROMPT_SUPPORT, host_action_prompt_end_if_current(prompt_generation));
   }
 
 #endif
@@ -775,6 +781,10 @@ void idle(TERN_(ADVANCED_PAUSE_FEATURE, bool no_stepper_sleep/*=false*/)) {
   
   // Manage Heaters (and Watchdog)
   thermalManager.manage_heater();
+
+  // Apply deferred host responses in the main loop, including while a command
+  // waits for user input. The emergency parser only fills a bounded mailbox.
+  TERN_(HOST_PROMPT_SUPPORT, host_response_process());
 
   #if ENABLED(CREALITY_POWER_LOSS)
     //实时获取当前的电压变化，电压低于23v时，则开始保存数据

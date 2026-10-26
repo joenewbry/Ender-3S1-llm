@@ -53,11 +53,11 @@ public:
     EP_N,
     EP_M,
     EP_M1,
-    EP_M10, EP_M108,
+    EP_M10, EP_M108, EP_M108_TAIL,
     EP_M11, EP_M112,
     EP_M4, EP_M41, EP_M410,
     #if ENABLED(HOST_PROMPT_SUPPORT)
-      EP_M8, EP_M87, EP_M876, EP_M876S, EP_M876SN,
+      EP_M8, EP_M87, EP_M876, EP_M876S, EP_M876SN, EP_M876_TAIL,
     #endif
     #if ENABLED(REALTIME_REPORTING_COMMANDS)
       EP_S, EP_S0, EP_S00, EP_GRBL_STATUS,
@@ -183,9 +183,33 @@ public:
               state = EP_M876SN;
               M876_reason = uint8_t(c - '0');
               break;
+            default: state = EP_IGNORE; break;
           }
           break;
 
+      #endif
+
+      // Resume commands must match completely. In particular, M1080 must not
+      // release a wait, and M876 S10 / S-1 must not select button 1.
+      // Numbered commands may carry a checksum; comments end the command.
+      case EP_M108:
+        if (ISEOL(c)) {
+          if (enabled) wait_for_user = wait_for_heatup = false;
+          state = EP_RESET;
+        }
+        else if (c == '*' || c == ';') state = EP_M108_TAIL;
+        else if (c != ' ' && c != '\t') state = EP_IGNORE;
+        break;
+
+      #if ENABLED(HOST_PROMPT_SUPPORT)
+        case EP_M876SN:
+          if (ISEOL(c)) {
+            if (enabled) host_response_enqueue(M876_reason);
+            state = EP_RESET;
+          }
+          else if (c == '*' || c == ';') state = EP_M876_TAIL;
+          else if (c != ' ' && c != '\t') state = EP_IGNORE;
+          break;
       #endif
 
       case EP_IGNORE:
@@ -195,11 +219,11 @@ public:
       default:
         if (ISEOL(c)) {
           if (enabled) switch (state) {
-            case EP_M108: wait_for_user = wait_for_heatup = false; break;
+            case EP_M108_TAIL: wait_for_user = wait_for_heatup = false; break;
             case EP_M112: killed_by_M112 = true; break;
             case EP_M410: quickstop_by_M410 = true; break;
             #if ENABLED(HOST_PROMPT_SUPPORT)
-              case EP_M876SN: host_response_handler(M876_reason); break;
+              case EP_M876_TAIL: host_response_enqueue(M876_reason); break;
             #endif
             #if ENABLED(REALTIME_REPORTING_COMMANDS)
               case EP_GRBL_STATUS: report_current_position_moving(); break;
